@@ -16,7 +16,42 @@ import { MathEditor, StickerPicker } from "./Pickers";
 import { SyncBadge } from "./SyncBadge";
 import { INKS, TOOL_KEYS, Toolbar, type Mode } from "./Toolbar";
 
-export function Notebook({ notepadId, pageId }: { notepadId: string; pageId?: string }) {
+type NotebookProps = { notepadId: string; pageId?: string };
+
+export function Notebook(props: NotebookProps) {
+  const notepad = useNotepad(props.notepadId);
+  return (
+    <div className="desk notebook-view" style={{ "--ribbon": notepad?.cover.ribbon, "--fur": notepad?.cover.fur } as CSSProperties}>
+      <NotebookRail notepadId={props.notepadId} />
+      <NotebookContent key={props.notepadId} {...props} />
+    </div>
+  );
+}
+
+function NotebookRail({ notepadId }: { notepadId: string }) {
+  const notepads = useNotepads();
+  return (
+    <nav className="rail" aria-label="Notepads">
+      <button className="rail-shelf" onClick={() => go({ view: "shelf" })} title="Bookstand (Ctrl+0)">
+        <span>☰</span>
+      </button>
+      {notepads.map((n, i) => (
+        <button
+          key={n.id}
+          className={`rail-tab ${n.id === notepadId ? "on" : ""}`}
+          style={{ "--tilt": `${tiltFor(n.id)}deg` } as CSSProperties}
+          onClick={() => n.id !== notepadId && go({ view: "book", id: n.id })}
+          title={`${n.title}${i < 9 ? ` (${inTauri ? "⌘" : "Ctrl+"}${i + 1})` : ""}`}
+        >
+          <Cover cover={n.cover} width={46} />
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+// Reset editing tools/dialogs per notebook while preserving the navigation rail.
+function NotebookContent({ notepadId, pageId }: NotebookProps) {
   const notepad = useNotepad(notepadId);
   const notepads = useNotepads();
   const pages = usePages(notepadId);
@@ -117,11 +152,11 @@ export function Notebook({ notepadId, pageId }: { notepadId: string; pageId?: st
     return () => ro.disconnect();
   }, [page?.id]);
 
-  if (!notepad) return <div className="desk" />;
+  if (!notepad) return null;
   if (!page) {
     // Pages may still be on their way from another device.
     return (
-      <div className="desk empty-book">
+      <div className="book-main empty-book">
         <button className="btn primary" onClick={() => goPage(getPageById(createPage(notepad.id)))}>
           + start a page
         </button>
@@ -158,24 +193,7 @@ export function Notebook({ notepadId, pageId }: { notepadId: string; pageId?: st
   };
 
   return (
-    <div className="desk notebook-view" style={{ "--ribbon": notepad.cover.ribbon, "--fur": notepad.cover.fur } as CSSProperties}>
-      <nav className="rail" aria-label="Notepads">
-        <button className="rail-shelf" onClick={() => go({ view: "shelf" })} title="Bookstand (Ctrl+0)">
-          <span>☰</span>
-        </button>
-        {notepads.map((n, i) => (
-          <button
-            key={n.id}
-            className={`rail-tab ${n.id === notepad.id ? "on" : ""}`}
-            style={{ "--tilt": `${tiltFor(n.id)}deg` } as CSSProperties}
-            onClick={() => n.id !== notepad.id && go({ view: "book", id: n.id })}
-            title={`${n.title}${i < 9 ? ` (${inTauri ? "⌘" : "Ctrl+"}${i + 1})` : ""}`}
-          >
-            <Cover cover={n.cover} width={46} />
-          </button>
-        ))}
-      </nav>
-
+    <>
       <div className="book-main">
         <header className="book-header" data-tauri-drag-region>
           <button className="icon-btn only-compact" onClick={() => go({ view: "shelf" })} aria-label="Bookstand">
@@ -306,7 +324,7 @@ export function Notebook({ notepadId, pageId }: { notepadId: string; pageId?: st
       )}
       {studio && <CoverStudio notepadId={notepad.id} onClose={() => setStudio(false)} />}
       {pendingSticker && <div className="hint-toast">Tap the page to stick it · Esc to cancel</div>}
-    </div>
+    </>
   );
 }
 

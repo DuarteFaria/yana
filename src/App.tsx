@@ -15,7 +15,7 @@ export function App() {
     <>
       <Ambient />
       {route.view === "book" ? (
-        <Notebook key={route.id} notepadId={route.id} pageId={route.page} />
+        <Notebook notepadId={route.id} pageId={route.page} />
       ) : (
         <Bookstand />
       )}
