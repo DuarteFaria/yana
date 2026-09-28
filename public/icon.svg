@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <filter id="fuzz" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.5" numOctaves="2" seed="7" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="10" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <radialGradient id="bg" cx="30%" cy="20%" r="90%">
+      <stop offset="0" stop-color="#ffe9ee"/>
+      <stop offset="1" stop-color="#ffb8c6"/>
+    </radialGradient>
+    <radialGradient id="light" cx="30%" cy="22%" r="85%">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.6" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.18"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="150" y="104" width="232" height="316" rx="40" fill="#fffaf0" stroke="#e8dcc6" stroke-width="3"/>
+  <path d="M330 380 h24 v70 l-12 -10 l-12 10z" fill="#f2c94c"/>
+  <g filter="url(#fuzz)">
+    <ellipse cx="190" cy="104" rx="26" ry="20" fill="#8b5a34"/>
+    <ellipse cx="322" cy="104" rx="26" ry="20" fill="#8b5a34"/>
+    <rect x="136" y="96" width="232" height="316" rx="40" fill="#b98352"/>
+    <rect x="136" y="96" width="232" height="316" rx="40" fill="url(#light)"/>
+    <ellipse cx="252" cy="200" rx="70" ry="58" fill="#a47146"/>
+    <ellipse cx="252" cy="312" rx="36" ry="30" fill="#ffd84d"/>
+    <ellipse cx="208" cy="316" rx="24" ry="20" fill="#8b5a34"/>
+    <ellipse cx="296" cy="316" rx="24" ry="20" fill="#8b5a34"/>
+  </g>
+  <path d="M210 184 h18 M276 184 h18" stroke="#2b2224" stroke-width="7" stroke-linecap="round"/>
+  <ellipse cx="243" cy="208" rx="4" ry="6" fill="#2b2224"/>
+  <ellipse cx="261" cy="208" rx="4" ry="6" fill="#2b2224"/>
+  <path d="M240 226 q12 10 24 0" stroke="#2b2224" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <ellipse cx="200" cy="212" rx="13" ry="8" fill="#f59aa6" opacity="0.8"/>
+  <ellipse cx="304" cy="212" rx="13" ry="8" fill="#f59aa6" opacity="0.8"/>
+  <path d="M256 284 q18 -16 32 -4 q-16 10 -32 4z" fill="#7cc36b"/>
+</svg>

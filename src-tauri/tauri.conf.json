@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "YANA",
+  "version": "../package.json",
+  "identifier": "com.duartefaria.yana",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "YANA",
+        "width": 1280,
+        "height": 880,
+        "minWidth": 420,
+        "minHeight": 500,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "backgroundColor": "#f7efe3"
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "category": "public.app-category.productivity",
+    "createUpdaterArtifacts": true,
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.png"],
+    "macOS": { "minimumSystemVersion": "12.0" }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkzQjRDMDM3NUFEOTRBMEUKUldRT1N0bGFOOEMwazdlZDIwNTcrYWoyblEvRUpIYVZQZjJ0WDRtQXNZcnBsZHJyT1l3R3NpM2EK",
+      "endpoints": ["https://github.com/DuarteFaria/yana/releases/latest/download/latest.json"]
+    }
+  }
+}

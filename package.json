@@ -5,17 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -p . && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -b --noEmit",
+    "typecheck": "tsc -p .",
     "tauri": "tauri"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.0",
+    "@types/node": "^24.19.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
-    "typescript": "^7.0.2",
+    "typescript": "^5.9.3",
     "vite": "^8.3.1"
   },
   "dependencies": {
@@ -27,6 +28,9 @@
     "@fontsource-variable/nunito": "^5.3.0",
     "@fontsource/gluten": "^5.3.0",
     "@fontsource/patrick-hand": "^5.3.0",
+    "@tauri-apps/api": "^2.12.0",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.13.0",
     "@tiptap/extension-highlight": "^3.31.3",
     "@tiptap/extension-image": "^3.31.3",
     "@tiptap/extension-list": "^3.31.3",
@@ -38,11 +42,15 @@
     "@tiptap/pm": "^3.31.3",
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
+    "@tiptap/suggestion": "^3.31.3",
     "convex": "^1.46.0",
     "idb": "^8.0.3",
     "katex": "^0.18.9",
     "perfect-freehand": "^1.2.3",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
+  },
+  "engines": {
+    "node": ">=20.12"
   }
 }
