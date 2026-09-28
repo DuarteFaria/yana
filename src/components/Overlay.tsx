@@ -1,5 +1,5 @@
 import { getStroke } from "perfect-freehand";
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { memo, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { newId } from "../lib/ids";
 import { PAGE_WIDTH } from "../lib/paper";
 import type { OverlayItem } from "../lib/types";
@@ -331,19 +331,32 @@ export function Overlay(p: Props) {
 
 // ---------- rendering ----------
 
-function Vector({ it }: { it: Exclude<OverlayItem, { t: "sticker" | "note" }> }) {
+type PenItem = Extract<OverlayItem, { t: "pen" }>;
+// Items are replaced on edits. Weak keys reuse paths across page visits without
+// retaining drawings after their page/history is no longer referenced.
+const penPaths = new WeakMap<PenItem, string>();
+
+function penPath(it: PenItem) {
+  const cached = penPaths.get(it);
+  if (cached !== undefined) return cached;
+  const pts: [number, number, number][] = [];
+  for (let i = 0; i < it.pts.length; i += 3) pts.push([it.pts[i], it.pts[i + 1], it.pts[i + 2]]);
+  const outline = getStroke(pts, {
+    size: it.size,
+    thinning: it.hl ? 0 : 0.55,
+    smoothing: 0.6,
+    streamline: 0.45,
+    simulatePressure: !pts.some((q) => q[2] !== 0.5),
+    last: true,
+  });
+  const path = svgPath(outline);
+  penPaths.set(it, path);
+  return path;
+}
+
+const Vector = memo(function Vector({ it }: { it: Exclude<OverlayItem, { t: "sticker" | "note" }> }) {
   if (it.t === "pen") {
-    const pts: [number, number, number][] = [];
-    for (let i = 0; i < it.pts.length; i += 3) pts.push([it.pts[i], it.pts[i + 1], it.pts[i + 2]]);
-    const outline = getStroke(pts, {
-      size: it.size,
-      thinning: it.hl ? 0 : 0.55,
-      smoothing: 0.6,
-      streamline: 0.45,
-      simulatePressure: !pts.some((q) => q[2] !== 0.5),
-      last: true,
-    });
-    return <path d={svgPath(outline)} fill={it.color} opacity={it.hl ? 0.35 : 1} style={it.hl ? { mixBlendMode: "multiply" } : undefined} />;
+    return <path d={penPath(it)} fill={it.color} opacity={it.hl ? 0.35 : 1} style={it.hl ? { mixBlendMode: "multiply" } : undefined} />;
   }
   const common = { stroke: it.color, strokeWidth: it.size, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   if (it.t === "line") return <line x1={it.x1} y1={it.y1} x2={it.x2} y2={it.y2} {...common} />;
@@ -361,7 +374,7 @@ function Vector({ it }: { it: Exclude<OverlayItem, { t: "sticker" | "note" }> })
   const fill = it.fill ?? "none";
   if (it.t === "rect") return <rect x={x} y={y} width={w} height={h} rx={Math.min(10, w / 4, h / 4)} fill={fill} fillOpacity={0.35} {...common} />;
   return <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill={fill} fillOpacity={0.35} {...common} />;
-}
+});
 
 function Selection({ it, noteHeight }: { it: OverlayItem; noteHeight: (id: string) => number }) {
   const b = bbox(it, noteHeight);
