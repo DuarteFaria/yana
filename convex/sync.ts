@@ -42,6 +42,17 @@ export const push = mutation({
       }),
     ),
   },
+  returns: v.object({
+    accepted: v.array(v.string()),
+    newer: v.array(v.object({
+      kind: recordKind,
+      id: v.string(),
+      data: v.string(),
+      updatedAt: v.number(),
+      deleted: v.boolean(),
+      syncedAt: v.number(),
+    })),
+  }),
   handler: async (ctx, { records }) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not signed in");
@@ -66,12 +77,25 @@ export const push = mutation({
     }[] = [];
 
     for (const r of records) {
-      const existing = await ctx.db
+      let existing = await ctx.db
         .query("records")
         .withIndex("by_user_client", (q) =>
           q.eq("userId", userId).eq("clientId", r.id),
         )
         .unique();
+      if (existing && existing.updatedAt === r.updatedAt) {
+        if (existing.kind === r.kind && existing.data === r.data && existing.deleted === r.deleted) {
+          // A retry of the same write needs no new pull event.
+          accepted.push(r.id);
+          continue;
+        }
+        // Equal client clocks can describe different edits. Keep the first
+        // accepted copy, but advance its timestamp so every client (including
+        // older clients that ignore equal timestamps) adopts the same winner.
+        const revision = { updatedAt: existing.updatedAt + 1, syncedAt: ts++ };
+        await ctx.db.patch(existing._id, revision);
+        existing = { ...existing, ...revision };
+      }
       if (existing && existing.updatedAt > r.updatedAt) {
         newer.push({
           kind: existing.kind,
