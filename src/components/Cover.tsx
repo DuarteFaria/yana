@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import { memo, useId, type ReactNode } from "react";
 import { useFileUrl } from "../lib/files";
 import type { Character, Cover as CoverT, Holding } from "../lib/types";
 
@@ -13,9 +13,10 @@ const BLUSH = "#f59aa6";
 
 type Props = { cover: CoverT; width?: number; className?: string; title?: string };
 
-export function Cover({ cover, width = 180, className, title }: Props) {
+export const Cover = memo(function Cover({ cover, width = 180, className, title }: Props) {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const photo = useFileUrl(cover.photo);
+  const textured = width > 48;
   const fluff = Math.max(0, Math.min(1, cover.fluff));
   const id = (s: string) => `${s}-${uid}`;
   const url = (s: string) => `url(#${id(s)})`;
@@ -67,12 +68,12 @@ export function Cover({ cover, width = 180, className, title }: Props) {
       {/* page block */}
       <rect x={BODY.x + 7} y={BODY.y + 5} width={BODY.w} height={BODY.h - 4} rx={BODY.r} fill="#fffaf0" stroke="#e8dcc6" />
 
-      <g filter={url("fuzz")}>
+      <g filter={textured ? url("fuzz") : undefined}>
         {behind(character, fur, accent, dark)}
         <rect x={BODY.x} y={BODY.y} width={BODY.w} height={BODY.h} rx={BODY.r} fill={fur} />
         <g clipPath={url("body")}>
-          <rect x={BODY.x} y={BODY.y} width={BODY.w} height={BODY.h} filter={url("fur")} opacity={0.18 + fluff * 0.2} />
-          <rect x={BODY.x} y={BODY.y} width={BODY.w} height={BODY.h} filter={url("sheen")} opacity={0.12 + fluff * 0.14} />
+          {textured && <rect x={BODY.x} y={BODY.y} width={BODY.w} height={BODY.h} filter={url("fur")} opacity={0.18 + fluff * 0.2} />}
+          {textured && <rect x={BODY.x} y={BODY.y} width={BODY.w} height={BODY.h} filter={url("sheen")} opacity={0.12 + fluff * 0.14} />}
           <rect x={BODY.x} y={BODY.y} width={BODY.w} height={BODY.h} fill={url("light")} />
           <rect x={BODY.x} y={BODY.y} width="18" height={BODY.h} fill={url("spine")} />
         </g>
@@ -86,13 +87,13 @@ export function Cover({ cover, width = 180, className, title }: Props) {
       ) : (
         <>
           <rect x={BODY.x + 9} y={BODY.y + 9} width={BODY.w - 18} height={BODY.h - 18} rx={BODY.r - 7} fill="none" stroke={isLight(fur) ? dark : "#fff"} strokeOpacity="0.35" strokeWidth="2" strokeDasharray="6 5" />
-          <g filter={url("fuzz")}>{front(character, fur, accent, dark, cover.holding)}</g>
+          <g filter={textured ? url("fuzz") : undefined}>{front(character, fur, accent, dark, cover.holding)}</g>
           {face(character, fur, accent)}
         </>
       )}
     </svg>
   );
-}
+});
 
 // ---------- parts behind the book (ears, tufts) ----------
 
