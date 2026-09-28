@@ -66,7 +66,10 @@ export function PageEditor({ page, onEditor }: { page: Page; onEditor: (e: Edito
       },
       onUpdate: ({ editor }) => {
         window.clearTimeout(saveTimer.current);
-        saveTimer.current = window.setTimeout(() => updatePage(pageId, { doc: editor.getJSON() }), SAVE_DELAY);
+        saveTimer.current = window.setTimeout(() => {
+          saveTimer.current = undefined;
+          updatePage(pageId, { doc: editor.getJSON() });
+        }, SAVE_DELAY);
       },
     },
     [pageId],
