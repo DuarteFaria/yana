@@ -1,7 +1,7 @@
 import { useConvex, useConvexAuth, useQuery } from "convex/react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { api } from "../../convex/_generated/api";
-import { getMeta, setMeta } from "./db";
+import { getMeta } from "./db";
 import { markUploaded, onPendingUpload, pendingUploads, setRemoteFileResolver } from "./files";
 import { applyRemote, dirtyRecords, hasDirty, markClean, subscribe } from "./store";
 
@@ -49,10 +49,25 @@ function Syncing() {
   const pulled = useQuery(api.sync.pull, cursor === null ? "skip" : { since: cursor });
   useEffect(() => {
     if (!pulled || !pulled.records.length) return;
-    applyRemote(pulled.records);
     const next = pulled.records.reduce((m, r) => Math.max(m, r.syncedAt), cursor ?? 0);
-    setMeta("cursor", next);
-    setCursor(next);
+    let alive = true;
+    let retry: number | undefined;
+    const save = async () => {
+      try {
+        await applyRemote(pulled.records, next);
+        if (alive) setCursor(next);
+      } catch (error) {
+        if (!alive) return;
+        console.warn("YANA: failed to persist downloaded notes, will retry", error);
+        setStatus("error");
+        retry = window.setTimeout(save, 1000);
+      }
+    };
+    void save();
+    return () => {
+      alive = false;
+      window.clearTimeout(retry);
+    };
   }, [pulled]);
 
   // ---- push: debounced, batched, retried with backoff ----
