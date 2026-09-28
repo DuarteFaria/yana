@@ -1,4 +1,4 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { db } from "./db";
 import { newId } from "./ids";
 import { PRESETS, suggestedPreset, suggestedTitle } from "./presets";
@@ -13,11 +13,9 @@ const pages = new Map<string, Stored<Page>>();
 const remoteRevs = new Map<string, number>();
 
 let loaded = false;
-let version = 0;
 const listeners = new Set<() => void>();
 
 function emit() {
-  version++;
   listeners.forEach((l) => l());
 }
 
@@ -49,60 +47,73 @@ function stamp(prev?: number) {
 export async function loadStore() {
   const d = await db();
   const [ns, ps] = await Promise.all([d.getAll("notepads"), d.getAll("pages")]);
-  ns.forEach((n) => notepads.set(n.id, n));
-  ps.forEach((p) => pages.set(p.id, p));
+  ns.forEach((n) => setRecord("notepad", n));
+  ps.forEach((p) => setRecord("page", p));
   loaded = true;
   emit();
 }
 
-// ---------- hooks ----------
+// Cached public snapshots are invalidated only when their records change.
+let notepadSnapshot: Notepad[] | undefined;
+const pageSnapshots = new Map<string | null, Page[]>();
+const byOrder = (a: Notepad | Page, b: Notepad | Page) => a.order - b.order || a.createdAt - b.createdAt;
 
-function useVersion() {
-  return useSyncExternalStore(subscribe, () => version);
+function setRecord(kind: RecordKind, rec: Stored<Notepad> | Stored<Page>) {
+  if (kind === "notepad") {
+    notepads.set(rec.id, rec as Stored<Notepad>);
+    notepadSnapshot = undefined;
+  } else {
+    const page = rec as Stored<Page>;
+    const prev = pages.get(page.id);
+    if (prev) pageSnapshots.delete(prev.notepadId);
+    pages.set(page.id, page);
+    pageSnapshots.delete(page.notepadId);
+  }
 }
 
+function getNotepads() {
+  return notepadSnapshot ??= [...notepads.values()].filter((n) => !n.deleted).sort(byOrder);
+}
+
+function getPages(notepadId: string | null) {
+  let snapshot = pageSnapshots.get(notepadId);
+  if (!snapshot) {
+    snapshot = [...pages.values()].filter((p) => p.notepadId === notepadId && !p.deleted).sort(byOrder);
+    pageSnapshots.set(notepadId, snapshot);
+  }
+  return snapshot;
+}
+
+// ---------- hooks ----------
+
 export function useLoaded() {
-  useVersion();
-  return loaded;
+  return useSyncExternalStore(subscribe, () => loaded);
 }
 
 export function useNotepads(): Notepad[] {
-  const v = useVersion();
-  return useMemo(
-    () =>
-      [...notepads.values()]
-        .filter((n) => !n.deleted)
-        .sort((a, b) => a.order - b.order || a.createdAt - b.createdAt),
-    [v],
-  );
+  return useSyncExternalStore(subscribe, getNotepads);
 }
 
-export function useNotepad(id: string | null) {
-  useVersion();
-  const n = id ? notepads.get(id) : undefined;
-  return n && !n.deleted ? n : undefined;
+export function useNotepad(id: string | null): Notepad | undefined {
+  return useSyncExternalStore(subscribe, () => {
+    const n = id ? notepads.get(id) : undefined;
+    return n && !n.deleted ? n : undefined;
+  });
 }
 
 export function usePages(notepadId: string | null): Page[] {
-  const v = useVersion();
-  return useMemo(
-    () =>
-      [...pages.values()]
-        .filter((p) => p.notepadId === notepadId && !p.deleted)
-        .sort((a, b) => a.order - b.order || a.createdAt - b.createdAt),
-    [v, notepadId],
-  );
+  return useSyncExternalStore(subscribe, () => getPages(notepadId));
 }
 
-export function usePage(id: string | null) {
-  useVersion();
-  const p = id ? pages.get(id) : undefined;
-  return p && !p.deleted ? p : undefined;
+export function usePage(id: string | null): Page | undefined {
+  return useSyncExternalStore(subscribe, () => {
+    const p = id ? pages.get(id) : undefined;
+    return p && !p.deleted ? p : undefined;
+  });
 }
 
 export function useRemoteRev(pageId: string | null) {
-  useVersion();
-  return pageId ? (remoteRevs.get(pageId) ?? 0) : 0;
+  return useSyncExternalStore(subscribe, () => pageId ? (remoteRevs.get(pageId) ?? 0) : 0);
 }
 
 export function getPage(id: string) {
@@ -127,7 +138,7 @@ export function createNotepad(character?: Character): string {
     deleted: false,
     dirty: 1,
   };
-  notepads.set(n.id, n);
+  setRecord("notepad", n);
   persist("notepad", n);
   createPage(n.id);
   emit();
@@ -138,7 +149,7 @@ export function updateNotepad(id: string, patch: Partial<Omit<Notepad, "id">>) {
   const prev = notepads.get(id);
   if (!prev) return;
   const n = { ...prev, ...patch, updatedAt: stamp(prev.updatedAt), dirty: 1 as const };
-  notepads.set(id, n);
+  setRecord("notepad", n);
   persist("notepad", n);
   emit();
 }
@@ -180,7 +191,7 @@ export function createPage(notepadId: string, afterId?: string): string {
     deleted: false,
     dirty: 1,
   };
-  pages.set(p.id, p);
+  setRecord("page", p);
   persist("page", p);
   emit();
   return p.id;
@@ -190,7 +201,7 @@ export function updatePage(id: string, patch: Partial<Omit<Page, "id">>) {
   const prev = pages.get(id);
   if (!prev) return;
   const p = { ...prev, ...patch, updatedAt: stamp(prev.updatedAt), dirty: 1 as const };
-  pages.set(id, p);
+  setRecord("page", p);
   persist("page", p);
   emit();
 }
@@ -257,9 +268,9 @@ export function markClean(pushed: WireRecord[], accepted: string[]) {
     const map = r.kind === "notepad" ? notepads : pages;
     const cur = map.get(r.id);
     if (cur && cur.updatedAt === r.updatedAt && cur.dirty) {
-      const clean = { ...cur, dirty: 0 as const };
-      map.set(r.id, clean as never);
-      persist(r.kind, clean);
+      // Only internal sync metadata changes; preserve public snapshot identity.
+      cur.dirty = 0;
+      persist(r.kind, { ...cur });
     }
   }
   emit();
@@ -278,7 +289,7 @@ export function applyRemote(records: WireRecord[]) {
       continue;
     }
     const rec = { ...data, id: r.id, updatedAt: r.updatedAt, deleted: r.deleted, dirty: 0 as const };
-    map.set(r.id, rec as never);
+    setRecord(r.kind, rec as never);
     persist(r.kind, rec as never);
     if (r.kind === "page") remoteRevs.set(r.id, (remoteRevs.get(r.id) ?? 0) + 1);
     changed = true;
