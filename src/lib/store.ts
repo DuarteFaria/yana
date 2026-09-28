@@ -25,14 +25,19 @@ export function subscribe(l: () => void) {
 }
 
 let writeChain: Promise<unknown> = Promise.resolve();
+function queueWrite(write: () => Promise<void>) {
+  const pending = writeChain.then(write);
+  // Keep subsequent writes usable, but let callers await this write's failure.
+  writeChain = pending.catch((e) => console.error("YANA: failed to save locally", e));
+  return pending;
+}
+
 function persist(kind: RecordKind, rec: Stored<Notepad> | Stored<Page>) {
-  writeChain = writeChain
-    .then(async () => {
-      const d = await db();
-      if (kind === "notepad") await d.put("notepads", rec as Stored<Notepad>);
-      else await d.put("pages", rec as Stored<Page>);
-    })
-    .catch((e) => console.error("YANA: failed to save locally", e));
+  return queueWrite(async () => {
+    const d = await db();
+    if (kind === "notepad") await d.put("notepads", rec as Stored<Notepad>);
+    else await d.put("pages", rec as Stored<Page>);
+  });
 }
 
 /** Resolves once everything written so far is on disk. */
@@ -276,12 +281,23 @@ export function markClean(pushed: WireRecord[], accepted: string[]) {
   emit();
 }
 
-export function applyRemote(records: WireRecord[]) {
+export function applyRemote(records: WireRecord[], cursor?: number) {
+  // A malformed batch must not partially update memory or advance its cursor.
+  if (cursor !== undefined) {
+    try { records.forEach((r) => JSON.parse(r.data)); }
+    catch (error) { return Promise.reject(error); }
+  }
   let changed = false;
+  const snapshot: { kind: RecordKind; rec: Stored<Notepad> | Stored<Page> }[] = [];
   for (const r of records) {
     const map = r.kind === "notepad" ? notepads : pages;
     const cur = map.get(r.id);
-    if (cur && cur.updatedAt >= r.updatedAt) continue;
+    if (cur && cur.updatedAt >= r.updatedAt) {
+      // Include unchanged/newer local records too: a previous pull may have
+      // reached memory but failed to reach disk, and this is its retry.
+      snapshot.push({ kind: r.kind, rec: { ...cur } });
+      continue;
+    }
     let data: object;
     try {
       data = JSON.parse(r.data);
@@ -290,9 +306,35 @@ export function applyRemote(records: WireRecord[]) {
     }
     const rec = { ...data, id: r.id, updatedAt: r.updatedAt, deleted: r.deleted, dirty: 0 as const };
     setRecord(r.kind, rec as never);
-    persist(r.kind, rec as never);
+    if (cursor === undefined) persist(r.kind, rec as never);
+    snapshot.push({ kind: r.kind, rec: rec as Stored<Notepad> | Stored<Page> });
     if (r.kind === "page") remoteRevs.set(r.id, (remoteRevs.get(r.id) ?? 0) + 1);
     changed = true;
   }
+  if (cursor === undefined) {
+    if (changed) emit();
+    return Promise.resolve();
+  }
+  const pending = queueWrite(async () => {
+    const d = await db();
+    const tx = d.transaction(["notepads", "pages", "meta"], "readwrite");
+    // Observe transaction rejection even if creating a put request throws.
+    const done = tx.done;
+    void done.catch(() => {});
+    try {
+      await Promise.all(snapshot.map(({ kind, rec }) => kind === "notepad"
+        ? tx.objectStore("notepads").put(rec as Stored<Notepad>)
+        : tx.objectStore("pages").put(rec as Stored<Page>)));
+      const previous = (await tx.objectStore("meta").get("cursor")) as number | undefined;
+      await tx.objectStore("meta").put(Math.max(previous ?? 0, cursor), "cursor");
+      await done;
+    } catch (error) {
+      try { tx.abort(); } catch { /* Already aborted or finished. */ }
+      await done.catch(() => {});
+      throw error;
+    }
+  });
+  // Queue the snapshot before listeners can enqueue newer edits.
   if (changed) emit();
+  return pending;
 }
