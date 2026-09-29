@@ -25,6 +25,8 @@ const POOLS: DecorKey[][] = [
 ];
 const CROWN: DecorKey[] = ["globe", "minibooks", "pumpkin", "fern", "candle"];
 const MIN_ROWS = 3;
+// The room only scrolls once the "new notepad" slot moves past this many shelves.
+const SCROLL_AFTER_ROWS = 3;
 const GAP = 18;
 
 type Slot =
@@ -104,6 +106,13 @@ export function Bookstand() {
   const compact = unitW > 0 && unitW < 640;
   const inner = Math.max(0, unitW - (compact ? 40 : 96));
   const { rows, crown, scale, coverW } = useMemo(() => packShelves(notepads, inner, compact), [notepads, inner, compact]);
+  const roomRef = useRef<HTMLDivElement>(null);
+  const locked = wide && rows.findIndex((row) => row.some((s) => s.kind === "add")) < SCROLL_AFTER_ROWS;
+
+  // Locking while panned up (e.g. after deleting a notepad) drops back to the floor.
+  useLayoutEffect(() => {
+    if (locked && roomRef.current) roomRef.current.scrollTop = 0;
+  }, [locked]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -160,7 +169,7 @@ export function Bookstand() {
   );
 
   return (
-    <div className={`desk shelf-view room ${compact ? "compact" : ""} ${wide ? "wide" : ""}`}>
+    <div ref={roomRef} className={`desk shelf-view room ${compact ? "compact" : ""} ${wide ? "wide" : ""} ${locked ? "locked" : ""}`}>
       <header className="shelf-header" data-tauri-drag-region>
         <SyncBadge />
       </header>

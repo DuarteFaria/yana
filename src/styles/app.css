@@ -2930,10 +2930,10 @@ body {
 }
 
 .corner-window {
-  left: 16.7cqw;
-  top: 17cqh;
-  width: 68cqw;
-  height: 39cqh;
+  left: 35cqw;
+  top: 19cqh;
+  width: 52cqw;
+  height: 33cqh;
 }
 .corner-rug {
   left: 8cqw;
@@ -2944,7 +2944,7 @@ body {
 }
 .corner-chair {
   left: 30cqw;
-  top: 59cqh;
+  top: 61.5cqh;
   width: 36cqw;
   height: 33cqh;
 }
@@ -3027,6 +3027,10 @@ body {
 .room.wide::-webkit-scrollbar {
   display: none;
 }
+/* no panning until the shelf has grown past its first few rows */
+.room.wide.locked {
+  overflow-y: hidden;
+}
 .scene {
   position: relative;
   flex: none;
@@ -3045,7 +3049,9 @@ body {
   position: relative;
   top: auto;
   align-self: end;
-  /* the corner is one viewport tall and sits on the floor */
+  /* the corner is one viewport tall and sits on the floor; it reaches up into
+     the header padding so it alone never makes the room scroll */
+  margin-top: -90px;
   margin-bottom: -8.5dvh;
 }
 .scene .shelf-col {
@@ -3078,11 +3084,27 @@ body {
   background: linear-gradient(to right, #26262a, #5a5a60, #26262a);
   box-shadow: 0 4px 6px rgba(40, 20, 10, 0.35);
 }
+/* hung on a nail above the lamp table, level with the window */
 .corner-clock {
-  left: 42cqw;
-  top: 2cqh;
-  width: 13.5cqh;
+  left: 4cqw;
+  top: 22cqh;
+  width: min(18cqh, 22cqw);
   z-index: 2;
+}
+.corner-clock::before {
+  content: "";
+  position: absolute;
+  top: -0.9cqh;
+  left: 50%;
+  width: 0.9cqh;
+  aspect-ratio: 1;
+  margin-left: -0.45cqh;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #f2d98d, #8a6b3a);
+  box-shadow: 0 0.2cqh 0.3cqh rgba(60, 30, 10, 0.35);
+}
+.corner-clock .wall-clock svg {
+  transform-origin: 50% 0;
 }
 
 .room:not(.wide) .floor {

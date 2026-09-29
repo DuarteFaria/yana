@@ -39,7 +39,7 @@ function Chair() {
     [225, 150],
   ];
   return (
-    <svg viewBox="0 0 340 350" className="chair" overflow="visible">
+    <svg viewBox="0 0 340 350" className="chair" overflow="visible" preserveAspectRatio="xMidYMax meet">
       <defs>
         <pattern id={cord} width="7" height="10" patternUnits="userSpaceOnUse">
           <rect width="7" height="10" fill="#2e9c56" />
@@ -114,7 +114,7 @@ function Chair() {
 
 function SideTable() {
   return (
-    <svg viewBox="0 0 170 260" className="side-table" overflow="visible">
+    <svg viewBox="0 0 170 260" className="side-table" overflow="visible" preserveAspectRatio="xMidYMax meet">
       <defs>
         <radialGradient id="lamp-glow">
           <stop offset="0" stopColor="#ffd98a" stopOpacity="0.85" />
