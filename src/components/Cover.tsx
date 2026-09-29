@@ -1,15 +1,20 @@
-import { memo, useId, type ReactNode } from "react";
+import { memo, useId, useRef, type ReactNode } from "react";
 import { useFileUrl } from "../lib/files";
+import { useSvgRaster } from "../lib/raster";
 import type { Character, Cover as CoverT, Holding } from "../lib/types";
 
 // A plush notebook cover drawn in SVG. The fluffiness comes from displacing
 // the edges with fractal noise and layering streaky noise as fur texture.
+// Those filters are slow to paint in WebKit, so textured covers are shown as a
+// PNG once drawn (see lib/raster).
 
 const W = 220;
 const H = 300;
 const BODY = { x: 20, y: 36, w: 180, h: 250, r: 28 };
 const INK = "#2b2224";
 const BLUSH = "#f59aa6";
+/** Room around the viewBox for ears, ribbon and fuzz that spill past it. */
+const PAD = 40;
 
 type Props = { cover: CoverT; width?: number; className?: string; title?: string };
 
@@ -23,16 +28,37 @@ export const Cover = memo(function Cover({ cover, width = 180, className, title 
   const { fur, accent, character } = cover;
   const dark = shade(fur, -0.28);
 
+  const svgRef = useRef<SVGSVGElement>(null);
+  const height = (width * H) / W;
+  const k = width / W;
+  // Wait for a photo to load so it's part of the raster.
+  const rasterKey = textured && (!cover.photo || photo) ? `${width}@${devicePixelRatio} ${photo ?? ""} ${JSON.stringify(cover)}` : null;
+  const raster = useSvgRaster(rasterKey, svgRef, {
+    viewBox: [-PAD, -PAD, W + PAD * 2, H + PAD * 2],
+    width: (W + PAD * 2) * k,
+    height: (H + PAD * 2) * k,
+  });
+
+  const svgProps = {
+    viewBox: `0 0 ${W} ${H}`,
+    width,
+    height,
+    className,
+    role: "img",
+    "aria-label": title ?? `${character} notebook`,
+    style: { overflow: "visible" },
+  } as const;
+
+  if (raster) {
+    return (
+      <svg {...svgProps}>
+        <image href={raster} x={-PAD} y={-PAD} width={W + PAD * 2} height={H + PAD * 2} />
+      </svg>
+    );
+  }
+
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      width={width}
-      height={(width * H) / W}
-      className={className}
-      role="img"
-      aria-label={title ?? `${character} notebook`}
-      style={{ overflow: "visible" }}
-    >
+    <svg ref={svgRef} {...svgProps}>
       <defs>
         <filter id={id("fuzz")} x="-15%" y="-15%" width="130%" height="130%">
           <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="7" result="n" />
