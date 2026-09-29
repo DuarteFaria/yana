@@ -23,7 +23,7 @@ type Props = {
 
 type Pt = { x: number; y: number };
 type Drag =
-  | { kind: "draw"; item: OverlayItem }
+  | { kind: "draw"; item: VectorItem }
   | { kind: "move"; start: Pt; orig: OverlayItem }
   | { kind: "handle"; handle: string; orig: OverlayItem; start: Pt }
   | { kind: "erase" };
@@ -39,6 +39,9 @@ export function Overlay(p: Props) {
     liveRef.current = v;
     setLiveState(v);
   };
+  // The item being drawn, kept apart from `items` so each pointer move only
+  // repaints its own layer instead of every stroke on the page.
+  const [draft, setDraft] = useState<VectorItem | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const drag = useRef<Drag | null>(null);
@@ -181,7 +184,7 @@ export function Overlay(p: Props) {
           item: { id: newId(), t: p.tool, x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y, color: p.color, size: p.size, fill: p.fill && (p.tool === "rect" || p.tool === "ellipse") ? p.color : undefined },
         };
     }
-    setLive([...p.items, (drag.current as { item: OverlayItem }).item]);
+    setDraft(drag.current.item);
   };
 
   const erase = (pt: Pt) => {
@@ -205,7 +208,7 @@ export function Overlay(p: Props) {
           pts.push(r1(q.x), r1(q.y), r2(e.pointerType === "pen" ? ev.pressure : 0.5));
         }
         d.item = { ...it, pts };
-      } else if (it.t !== "sticker" && it.t !== "note") {
+      } else {
         let { x, y } = pt;
         if (e.shiftKey && (it.t === "line" || it.t === "arrow")) {
           // snap to 45°
@@ -220,7 +223,7 @@ export function Overlay(p: Props) {
         }
         d.item = { ...it, x2: x, y2: y };
       }
-      setLive([...p.items, d.item]);
+      setDraft(d.item);
     } else if (d.kind === "move") {
       const moved = translate(d.orig, pt.x - d.start.x, pt.y - d.start.y);
       setLive(p.items.map((i) => (i.id === moved.id ? moved : i)));
@@ -236,8 +239,8 @@ export function Overlay(p: Props) {
     if (!d) return;
     if (d.kind === "draw") {
       const it = d.item;
-      const tiny = it.t !== "pen" && it.t !== "sticker" && it.t !== "note" && Math.hypot(it.x2 - it.x1, it.y2 - it.y1) < 4;
-      if (tiny) return setLive(null);
+      setDraft(null);
+      if (it.t !== "pen" && Math.hypot(it.x2 - it.x1, it.y2 - it.y1) < 4) return;
       commit([...p.items, it]);
     } else if (liveRef.current) {
       commit(liveRef.current);
@@ -268,9 +271,12 @@ export function Overlay(p: Props) {
         }
       }}
     >
-      <svg className="ov-svg" width={PAGE_WIDTH} height={p.height}>
-        {items.map((it) => (it.t === "sticker" || it.t === "note" ? null : <Vector key={it.id} it={it} />))}
-      </svg>
+      <Vectors items={items} height={p.height} />
+      {draft && (
+        <svg className="ov-svg ov-draft" width={PAGE_WIDTH} height={p.height} style={draft.t === "pen" && draft.hl ? { mixBlendMode: "multiply" } : undefined}>
+          <Vector it={draft} />
+        </svg>
+      )}
       {items.map((it) =>
         it.t === "sticker" ? (
           <div key={it.id} className={`ov-sticker ${fresh.current.has(it.id) ? "ov-pop" : ""}`} style={{ left: it.x - it.s / 2, top: it.y - it.s / 2, width: it.s, height: it.s, transform: `rotate(${it.r}deg)` }}>
@@ -331,6 +337,7 @@ export function Overlay(p: Props) {
 
 // ---------- rendering ----------
 
+type VectorItem = Exclude<OverlayItem, { t: "sticker" | "note" }>;
 type PenItem = Extract<OverlayItem, { t: "pen" }>;
 // Items are replaced on edits. Weak keys reuse paths across page visits without
 // retaining drawings after their page/history is no longer referenced.
@@ -354,7 +361,15 @@ function penPath(it: PenItem) {
   return path;
 }
 
-const Vector = memo(function Vector({ it }: { it: Exclude<OverlayItem, { t: "sticker" | "note" }> }) {
+const Vectors = memo(function Vectors({ items, height }: { items: OverlayItem[]; height: number }) {
+  return (
+    <svg className="ov-svg" width={PAGE_WIDTH} height={height}>
+      {items.map((it) => (it.t === "sticker" || it.t === "note" ? null : <Vector key={it.id} it={it} />))}
+    </svg>
+  );
+});
+
+const Vector = memo(function Vector({ it }: { it: VectorItem }) {
   if (it.t === "pen") {
     return <path d={penPath(it)} fill={it.color} opacity={it.hl ? 0.35 : 1} style={it.hl ? { mixBlendMode: "multiply" } : undefined} />;
   }
