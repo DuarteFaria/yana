@@ -3,8 +3,8 @@ import { go, withTransition } from "../lib/route";
 import { createNotepad, deleteNotepad, useNotepads } from "../lib/store";
 import { showToast } from "../lib/toast";
 import type { Notepad } from "../lib/types";
-import { Cover } from "./Cover";
 import { CoverStudio } from "./CoverStudio";
+import { LockedCover, UnlockDialog } from "./Lock";
 import { DECOR, Decor, FairyLights, Moss, type DecorKey } from "./Decor";
 import { SyncBadge } from "./SyncBadge";
 import { ReadingCorner } from "./ReadingCorner";
@@ -101,6 +101,7 @@ function packShelves(notepads: Notepad[], width: number, compact: boolean) {
 export function Bookstand() {
   const notepads = useNotepads();
   const [editing, setEditing] = useState<string | null>(null);
+  const [unlockToDelete, setUnlockToDelete] = useState<Notepad | null>(null);
   const [unitRef, unitW] = useWidth<HTMLDivElement>();
   const wide = useWide();
   const compact = unitW > 0 && unitW < 640;
@@ -116,14 +117,14 @@ export function Bookstand() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (editing || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (editing || unlockToDelete || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const n = Number(e.key);
       if (n >= 1 && n <= 9 && notepads[n - 1]) go({ view: "book", id: notepads[n - 1].id });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [notepads, editing]);
+  }, [notepads, editing, unlockToDelete]);
 
   const addNotepad = () => {
     let id = "";
@@ -133,7 +134,7 @@ export function Bookstand() {
   };
 
   const renderSlot = (s: Slot): ReactNode => {
-    if (s.kind === "book") return <NotepadCard key={s.notepad.id} notepad={s.notepad} index={s.index} width={coverW} onCustomise={() => setEditing(s.notepad.id)} />;
+    if (s.kind === "book") return <NotepadCard key={s.notepad.id} notepad={s.notepad} index={s.index} width={coverW} onCustomise={() => setEditing(s.notepad.id)} onDelete={() => (s.notepad.lock ? setUnlockToDelete(s.notepad) : putAway(s.notepad))} />;
     if (s.kind === "add")
       return (
         <button key="add" className="add-slot" style={{ "--i": s.index, width: coverW, height: coverW * 1.36, viewTransitionName: "add-slot" } as CSSProperties} onClick={addNotepad} aria-label="New notepad">
@@ -186,6 +187,18 @@ export function Bookstand() {
       )}
 
       {editing && <CoverStudio notepadId={editing} onClose={() => setEditing(null)} />}
+      {unlockToDelete && (
+        <UnlockDialog
+          notepad={unlockToDelete}
+          sub="it’s locked — the password lets you put it away"
+          action="Put away"
+          onClose={() => setUnlockToDelete(null)}
+          onUnlocked={() => {
+            setUnlockToDelete(null);
+            putAway(unlockToDelete);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -225,7 +238,7 @@ function putAway(notepad: Notepad) {
   }, "shelf");
 }
 
-function NotepadCard({ notepad, index, width, onCustomise }: { notepad: Notepad; index: number; width: number; onCustomise: () => void }) {
+function NotepadCard({ notepad, index, width, onCustomise, onDelete }: { notepad: Notepad; index: number; width: number; onCustomise: () => void; onDelete: () => void }) {
   return (
     <div
       className="card"
@@ -241,9 +254,9 @@ function NotepadCard({ notepad, index, width, onCustomise }: { notepad: Notepad;
         aria-label={`Open ${notepad.title}`}
         style={{ viewTransitionName: `book-${notepad.id}` } as CSSProperties}
       >
-        <Cover cover={notepad.cover} width={width} title={notepad.title} />
+        <LockedCover cover={notepad.cover} width={width} title={notepad.title} locked={!!notepad.lock} />
       </button>
-      <button className="card-delete" onClick={() => putAway(notepad)} aria-label={`Delete ${notepad.title}`} title="Delete">
+      <button className="card-delete" onClick={onDelete} aria-label={`Delete ${notepad.title}`} title="Delete">
         <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden>
           <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
         </svg>
