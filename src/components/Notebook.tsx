@@ -1,6 +1,7 @@
 import type { Editor, JSONContent } from "@tiptap/react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { saveFile } from "../lib/files";
+import { useUnlocked } from "../lib/lock";
 import { inTauri } from "../lib/native";
 import { PAGE_MIN_HEIGHT, PAGE_WIDTH, paperStyle } from "../lib/paper";
 import { go, navigate } from "../lib/route";
@@ -9,6 +10,7 @@ import type { Page } from "../lib/types";
 import { tiltFor } from "./Bookstand";
 import { Cover } from "./Cover";
 import { CoverStudio } from "./CoverStudio";
+import { LockedCover, LockScreen, LockSettings, PadlockIcon } from "./Lock";
 import { bridge, type MathTarget } from "./editor/bridge";
 import { PageEditor } from "./editor/PageEditor";
 import { Overlay, overlayBottom, type Tool } from "./Overlay";
@@ -20,10 +22,11 @@ type NotebookProps = { notepadId: string; pageId?: string };
 
 export function Notebook(props: NotebookProps) {
   const notepad = useNotepad(props.notepadId);
+  const unlocked = useUnlocked(props.notepadId);
   return (
     <div className="desk notebook-view" style={{ "--ribbon": notepad?.cover.ribbon, "--fur": notepad?.cover.fur } as CSSProperties}>
       <NotebookRail notepadId={props.notepadId} />
-      <NotebookContent key={props.notepadId} {...props} />
+      {notepad?.lock && !unlocked ? <LockScreen notepad={notepad} /> : <NotebookContent key={props.notepadId} {...props} />}
     </div>
   );
 }
@@ -43,7 +46,7 @@ function NotebookRail({ notepadId }: { notepadId: string }) {
           onClick={() => n.id !== notepadId && go({ view: "book", id: n.id })}
           title={`${n.title}${i < 9 ? ` (${inTauri ? "⌘" : "Ctrl+"}${i + 1})` : ""}`}
         >
-          <Cover cover={n.cover} width={46} />
+          <LockedCover cover={n.cover} width={46} locked={!!n.lock} />
         </button>
       ))}
     </nav>
@@ -68,6 +71,7 @@ function NotebookContent({ notepadId, pageId }: NotebookProps) {
   const [stickers, setStickers] = useState(false);
   const [studio, setStudio] = useState(false);
   const [pageList, setPageList] = useState(false);
+  const [lockSettings, setLockSettings] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   // Notepad deleted elsewhere (or bad link): back to the shelf.
@@ -204,6 +208,14 @@ function NotebookContent({ notepadId, pageId }: NotebookProps) {
             {notepad.title || "Untitled"}
           </button>
           <span className="grow" />
+          <button
+            className={`icon-btn lock-btn ${notepad.lock ? "on" : ""}`}
+            onClick={() => setLockSettings(true)}
+            title={notepad.lock ? "Lock" : "Lock with a password"}
+            aria-label={notepad.lock ? "Lock" : "Lock with a password"}
+          >
+            <PadlockIcon filled={!!notepad.lock} />
+          </button>
           <SyncBadge />
         </header>
 
@@ -322,6 +334,7 @@ function NotebookContent({ notepadId, pageId }: NotebookProps) {
           }}
         />
       )}
+      {lockSettings && <LockSettings notepad={notepad} onClose={() => setLockSettings(false)} />}
       {studio && <CoverStudio notepadId={notepad.id} onClose={() => setStudio(false)} />}
       {pendingSticker && <div className="hint-toast">Tap the page to stick it · Esc to cancel</div>}
     </>

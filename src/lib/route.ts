@@ -28,6 +28,13 @@ export function useRoute() {
   );
 }
 
+/** Runs `l` after every route change (outside React). */
+export function onRouteChange(l: (r: Route) => void) {
+  const run = () => l(current);
+  listeners.add(run);
+  return () => listeners.delete(run);
+}
+
 /** Updates the route synchronously (needed so view transitions can snapshot it). */
 export function navigate(r: Route, opts: { replace?: boolean } = {}) {
   const hash = r.view === "shelf" ? "#/" : `#/n/${r.id}${r.page ? `/${r.page}` : ""}`;

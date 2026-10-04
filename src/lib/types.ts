@@ -44,12 +44,21 @@ export type Paper = {
   ink: string;
 };
 
+/** Password lock: only a salted PBKDF2 hash is stored (and synced). */
+export type NotepadLock = {
+  salt: string;
+  hash: string;
+  iterations: number;
+  hint?: string;
+};
+
 export type Notepad = {
   id: string;
   title: string;
   order: number;
   cover: Cover;
   paper: Paper;
+  lock?: NotepadLock;
   createdAt: number;
   updatedAt: number;
   deleted: boolean;
